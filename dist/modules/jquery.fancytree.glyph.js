@@ -163,26 +163,66 @@ var FT = $.ui.fancytree,
 	};
 
 
-function setIcon( span, baseClass, opts, type ) {
-	var map = opts.map,
-		icon = map[ type ],
-		$span = $( span ),
-		setClass = baseClass + " " + (map._addClass || "");
+function setIcon(span, baseClass, opts, type, node) {
+    
+    if (span.tagName === "svg" && opts.preset === "awesome5") {
+        // fa5 script converts <i> to <svg> so call a specific handler.
+        // Updating the class via the jquery attr function causes
+        // the Fancytree to flicker and jump when applied.
 
-	if( typeof icon === "string" ) {
-		$span.attr( "class", setClass + " " + icon );
-	} else if ( icon ) {
-		if( icon.text ) {
-			// $span.text( "" + icon.text );
-			span.textContent = "" + icon.text;
-		} else if ( icon.html ) {
-			// $(span).append($(icon.html));
-			span.innerHTML = icon.html;
-		}
-		$span.attr( "class", setClass + " " + ( icon.addClass || "" ) );
-	}
+        setIconFA5(span, baseClass, opts, type, node);
+    }
+    else {
+       
+        var map = opts.map,
+            icon = map[type],
+            $span = $(span),
+            setClass = baseClass + " " + (map._addClass || "");
+
+        if ($.isFunction(icon)) {
+            $span.attr("class", setClass + " " + icon.call(this, span, node));
+        }
+        else if (typeof icon === "string") {
+            $span.attr("class", setClass + " " + icon);
+        } else if (icon) {
+            if (icon.text) {
+                // $span.text( "" + icon.text );
+                span.textContent = "" + icon.text;
+            } else if (icon.html) {
+                // $(span).append($(icon.html));
+                span.innerHTML = icon.html;
+            }
+            $span.attr("class", setClass + " " + (icon.addClass || ""));
+        }
+        // if icon is not defined, then state has not changed to do not update.
+        if (icon) {
+            $span.data("icon-state", type);
+        }
+    }
 }
+    // When icon is an SVG (FontAwesome5 script mode)
+    // the attr can't be used cause it causes the tree to 
+    // jump all over the place.
+function setIconFA5(span, baseClass, opts, type, node) {
+     var map = opts.map,
+		icon = map[type],
+        $span = $(span),
+        oldPrefix = $span.data("prefix"),
+        oldIcon = "fa-" + $span.data("icon");
 
+    // remove old icon
+    if (typeof oldIcon === "string") {
+        $span.removeClass(oldIcon);
+    }
+
+    // add new icon
+    if ($.isFunction(icon)) {
+        $span.addClass( icon.call(this, span, node));
+    }
+    else if (typeof icon === "string") {
+        $span.addClass(icon);
+    }
+}
 
 $.ui.fancytree.registerExtension({
 	name: "glyph",
@@ -219,7 +259,8 @@ $.ui.fancytree.registerExtension({
 		if( node.isRoot() ){
 			return res;
 		}
-		span = $span.children("span.fancytree-expander").get(0);
+
+		span = $span.children(".fancytree-expander").get(0);
 		if( span ){
 			// if( node.isLoading() ){
 				// icon = "loading";
@@ -232,30 +273,31 @@ $.ui.fancytree.registerExtension({
 			}else{
 				icon = "noExpander";
 			}
-			// span.className = "fancytree-expander " + map[icon];
-			setIcon( span, "fancytree-expander", opts, icon );
+		    // span.className = "fancytree-expander " + map[icon];
+	
+			setIcon( span, "fancytree-expander", opts, icon, node );
 		}
 
 		if( node.tr ){
-			span = $("td", node.tr).find("span.fancytree-checkbox").get(0);
+			span = $("td", node.tr).find(".fancytree-checkbox").get(0);
 		}else{
-			span = $span.children("span.fancytree-checkbox").get(0);
+			span = $span.children(".fancytree-checkbox").get(0);
 		}
 		if( span ) {
 			checkbox = FT.evalOption("checkbox", node, node, opts, false);
 			if( (node.parent && node.parent.radiogroup ) || checkbox === "radio" ) {
 				icon = node.selected ? "radioSelected" : "radio";
-				setIcon( span, "fancytree-checkbox fancytree-radio", opts, icon );
+				setIcon( span, "fancytree-checkbox fancytree-radio", opts, icon, node );
 			} else {
 				icon = node.selected ? "checkboxSelected" : (node.partsel ? "checkboxUnknown" : "checkbox");
 				// span.className = "fancytree-checkbox " + map[icon];
-				setIcon( span, "fancytree-checkbox", opts, icon );
+				setIcon( span, "fancytree-checkbox", opts, icon, node );
 			}
 		}
 
 		// Standard icon (note that this does not match .fancytree-custom-icon,
 		// that might be set by opts.icon callbacks)
-		span = $span.children("span.fancytree-icon").get(0);
+		span = $span.children(".fancytree-icon").get(0);
 		if( span ){
 			if( node.statusNodeType ){
 				icon = node.statusNodeType; // loading, error
@@ -264,11 +306,12 @@ $.ui.fancytree.registerExtension({
 			}else{
 				icon = node.expanded ? "docOpen" : "doc";
 			}
-			setIcon( span, "fancytree-icon", opts, icon );
+			setIcon( span, "fancytree-icon", opts, icon, node );
 		}
 		return res;
 	},
-	nodeSetStatus: function(ctx, status, message, details) {
+	nodeSetStatus: function (ctx, status, message, details) {
+	  
 		var res, span,
 			opts = ctx.options.glyph,
 			node = ctx.node;
@@ -277,15 +320,15 @@ $.ui.fancytree.registerExtension({
 
 		if( status === "error" || status === "loading" || status === "nodata" ){
 			if(node.parent){
-				span = $("span.fancytree-expander", node.span).get(0);
+				span = $(".fancytree-expander", node.span).get(0);
 				if( span ) {
-					setIcon( span, "fancytree-expander", opts, status );
+					setIcon( span, "fancytree-expander", opts, status, node );
 				}
 			}else{ //
 				span = $(".fancytree-statusnode-" + status, node[this.nodeContainerAttrName])
-					.find("span.fancytree-icon").get(0);
+					.find(".fancytree-icon").get(0);
 				if( span ) {
-					setIcon( span, "fancytree-icon", opts, status );
+					setIcon( span, "fancytree-icon", opts, status, node );
 				}
 			}
 		}
